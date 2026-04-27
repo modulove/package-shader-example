@@ -47,10 +47,10 @@ local function spawn_floater(file)
     }
 end
 
--- 2..4 instances of each logo, decided at startup.
+-- 1..2 instances of each logo, decided at startup.
 local floaters = {}
 for _, name in ipairs(LOGOS) do
-    local count = 2 + math.random(0, 2)
+    local count = 1 + math.random(0, 1)
     for _ = 1, count do
         floaters[#floaters + 1] = spawn_floater(name)
     end
@@ -96,6 +96,39 @@ local function bounce(f, now)
     clamp_speed(f)
 end
 
+-- Equal-mass elastic collision between two floaters, treating each as a
+-- circle of its current half-size. The cropped logos roughly fit their
+-- inscribed circles, so circle-vs-circle reads as logo-vs-logo.
+local function collide_pair(a, b, now)
+    local ra = size_of(a, now) / 2
+    local rb = size_of(b, now) / 2
+    local dx, dy = b.cx - a.cx, b.cy - a.cy
+    local d2 = dx * dx + dy * dy
+    local rsum = ra + rb
+    if d2 >= rsum * rsum or d2 < 1e-6 then return end
+
+    local d = math.sqrt(d2)
+    local nx, ny = dx / d, dy / d
+    local rel_n = (b.vel_x - a.vel_x) * nx + (b.vel_y - a.vel_y) * ny
+    if rel_n >= 0 then return end  -- already separating
+
+    a.vel_x = a.vel_x + rel_n * nx
+    a.vel_y = a.vel_y + rel_n * ny
+    b.vel_x = b.vel_x - rel_n * nx
+    b.vel_y = b.vel_y - rel_n * ny
+
+    local push = (rsum - d) / 2
+    a.cx = a.cx - nx * push
+    a.cy = a.cy - ny * push
+    b.cx = b.cx + nx * push
+    b.cy = b.cy + ny * push
+
+    a.spin = rand_range(-80, 80)
+    b.spin = rand_range(-80, 80)
+    clamp_speed(a)
+    clamp_speed(b)
+end
+
 function node.render()
     gl.clear(0, 0, 0, 1)
 
@@ -117,6 +150,14 @@ function node.render()
         f.cy    = f.cy    + f.vel_y * dt
         f.angle = f.angle + f.spin  * dt
         bounce(f, now)
+    end
+
+    -- Pairwise inter-logo collision (every pair, since we have at most 4
+    -- floaters this is at most 6 checks per frame).
+    for i = 1, #floaters do
+        for j = i + 1, #floaters do
+            collide_pair(floaters[i], floaters[j], now)
+        end
     end
 
     -- Depth illusion: draw smaller (further) instances first so the
