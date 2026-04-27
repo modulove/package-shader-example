@@ -22,7 +22,7 @@ end
 function node.render()
     gl.clear(0, 0, 0, 1)
     shader:use{
-        Effect = math.cos(os.time() * 2) * 3,
+        Time = sys.now(),
     }
     current_logo():draw(util.scale_into(WIDTH, HEIGHT, 400, 400))
 end
