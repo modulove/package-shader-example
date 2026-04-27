@@ -5,12 +5,7 @@ local LOGOS = {
     "logo2.png",
 }
 
--- Visible logo size and the transparent margin around it that the shader
--- fills with the aura halo. The drawn quad is LOGO_SIZE + 2*GLOW_MARGIN.
 local LOGO_SIZE   = 390
-local GLOW_MARGIN = 15
-local QUAD_SIZE   = LOGO_SIZE + 2 * GLOW_MARGIN
-local INSET       = GLOW_MARGIN / QUAD_SIZE
 local LOGO_RADIUS = LOGO_SIZE / 2
 
 local resources = {"shader.frag"}
@@ -23,21 +18,21 @@ local function logo_image(filename)
     return _G[filename:gsub("%.png$", "")]
 end
 
--- One floater per logo. Position is the top-left of the (logo + glow) quad.
+-- One floater per logo. Position is the top-left of the logo quad.
 -- Initial velocities use mismatched components so the path doesn't lock to
 -- a 45 degree pattern.
 local floaters = {
     {
         file  = "logo1.png",
-        pos_x = WIDTH  * 0.25 - QUAD_SIZE / 2,
-        pos_y = HEIGHT * 0.50 - QUAD_SIZE / 2,
+        pos_x = WIDTH  * 0.25 - LOGO_SIZE / 2,
+        pos_y = HEIGHT * 0.50 - LOGO_SIZE / 2,
         vel_x =  80,
         vel_y =  53,
     },
     {
         file  = "logo2.png",
-        pos_x = WIDTH  * 0.75 - QUAD_SIZE / 2,
-        pos_y = HEIGHT * 0.40 - QUAD_SIZE / 2,
+        pos_x = WIDTH  * 0.75 - LOGO_SIZE / 2,
+        pos_y = HEIGHT * 0.40 - LOGO_SIZE / 2,
         vel_x = -67,
         vel_y =  71,
     },
@@ -46,8 +41,8 @@ local floaters = {
 local last_t = sys.now()
 
 local function reflect_walls(f)
-    local max_x = WIDTH  - QUAD_SIZE
-    local max_y = HEIGHT - QUAD_SIZE
+    local max_x = WIDTH  - LOGO_SIZE
+    local max_y = HEIGHT - LOGO_SIZE
     if f.pos_x < 0     then f.pos_x = -f.pos_x;            f.vel_x = -f.vel_x end
     if f.pos_x > max_x then f.pos_x = 2 * max_x - f.pos_x; f.vel_x = -f.vel_x end
     if f.pos_y < 0     then f.pos_y = -f.pos_y;            f.vel_y = -f.vel_y end
@@ -55,13 +50,12 @@ local function reflect_walls(f)
 end
 
 -- Equal-mass elastic collision between the two logos, treating each as a
--- circle of LOGO_RADIUS centred on the quad. Glow halos overlap freely;
--- only the visible logo shapes interact.
+-- circle of LOGO_RADIUS centred on its quad.
 local function collide(a, b)
-    local ax = a.pos_x + QUAD_SIZE / 2
-    local ay = a.pos_y + QUAD_SIZE / 2
-    local bx = b.pos_x + QUAD_SIZE / 2
-    local by = b.pos_y + QUAD_SIZE / 2
+    local ax = a.pos_x + LOGO_SIZE / 2
+    local ay = a.pos_y + LOGO_SIZE / 2
+    local bx = b.pos_x + LOGO_SIZE / 2
+    local by = b.pos_y + LOGO_SIZE / 2
     local dx, dy = bx - ax, by - ay
     local d2 = dx * dx + dy * dy
     local r  = 2 * LOGO_RADIUS
@@ -99,14 +93,11 @@ function node.render()
     end
     collide(floaters[1], floaters[2])
 
-    shader:use{
-        Time  = now,
-        Inset = INSET,
-    }
+    shader:use{ Time = now }
     for _, f in ipairs(floaters) do
         logo_image(f.file):draw(
             f.pos_x, f.pos_y,
-            f.pos_x + QUAD_SIZE, f.pos_y + QUAD_SIZE
+            f.pos_x + LOGO_SIZE, f.pos_y + LOGO_SIZE
         )
     end
 end
