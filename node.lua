@@ -47,10 +47,10 @@ local function spawn_floater(file)
     }
 end
 
--- 1..2 instances of each logo, decided at startup.
+-- 1..4 instances of each logo, decided at startup.
 local floaters = {}
 for _, name in ipairs(LOGOS) do
-    local count = 1 + math.random(0, 1)
+    local count = 1 + math.random(0, 3)
     for _ = 1, count do
         floaters[#floaters + 1] = spawn_floater(name)
     end
@@ -96,12 +96,24 @@ local function bounce(f, now)
     clamp_speed(f)
 end
 
+-- Depth threshold for collision. Two floaters only "feel" each other when
+-- their pulsed sizes are within this fraction of their average size; if
+-- one is much larger (i.e. visibly closer to the viewer) than the other,
+-- they're treated as being on different planes and pass through with
+-- the usual alpha-blended merge.
+local DEPTH_COLLIDE_TOL = 0.25
+
 -- Equal-mass elastic collision between two floaters, treating each as a
 -- circle of its current half-size. The cropped logos roughly fit their
 -- inscribed circles, so circle-vs-circle reads as logo-vs-logo.
 local function collide_pair(a, b, now)
-    local ra = size_of(a, now) / 2
-    local rb = size_of(b, now) / 2
+    local sa = size_of(a, now)
+    local sb = size_of(b, now)
+    -- Only collide when they're at roughly the same depth.
+    if math.abs(sa - sb) / ((sa + sb) * 0.5) > DEPTH_COLLIDE_TOL then return end
+
+    local ra = sa * 0.5
+    local rb = sb * 0.5
     local dx, dy = b.cx - a.cx, b.cy - a.cy
     local d2 = dx * dx + dy * dy
     local rsum = ra + rb
