@@ -5,8 +5,8 @@ local LOGOS = {
     "logo2.png",
 }
 
-local LOGO_SIZE   = 390
-local LOGO_RADIUS = LOGO_SIZE / 2
+local BASE_SIZE = 390     -- reference logo size in pixels
+local DEPTH_AMP = 0.30    -- +/-30% size pulse to fake a depth axis
 
 local resources = {"shader.frag"}
 for _, name in ipairs(LOGOS) do
@@ -14,69 +14,55 @@ for _, name in ipairs(LOGOS) do
 end
 util.resource_loader(resources)
 
-local function logo_image(filename)
-    return _G[filename:gsub("%.png$", "")]
+math.randomseed(os.time())
+
+local function rand_range(a, b)
+    return a + math.random() * (b - a)
 end
 
--- One floater per logo. Position is the top-left of the logo quad.
--- Initial velocities use mismatched components so the path doesn't lock to
--- a 45 degree pattern.
-local floaters = {
-    {
-        file  = "logo1.png",
-        pos_x = WIDTH  * 0.25 - LOGO_SIZE / 2,
-        pos_y = HEIGHT * 0.50 - LOGO_SIZE / 2,
-        vel_x =  80,
-        vel_y =  53,
-    },
-    {
-        file  = "logo2.png",
-        pos_x = WIDTH  * 0.75 - LOGO_SIZE / 2,
-        pos_y = HEIGHT * 0.40 - LOGO_SIZE / 2,
-        vel_x = -67,
-        vel_y =  71,
-    },
-}
+-- One floater per logo. Position is the logo's centre.
+-- The two logos pass through each other freely (no inter-logo collision).
+local floaters = {}
+for i, name in ipairs(LOGOS) do
+    local dir = (i == 1) and 1 or -1
+    floaters[i] = {
+        file        = name,
+        cx          = WIDTH  * (i == 1 and 0.30 or 0.70),
+        cy          = HEIGHT * (i == 1 and 0.50 or 0.40),
+        vel_x       = rand_range(60, 120) * dir,
+        vel_y       = rand_range(40,  90) * dir,
+        angle       = rand_range(0, 360),  -- random starting orientation
+        spin        = 0,                   -- no rotation until first wall bounce
+        depth_phase = rand_range(0, math.pi * 2),
+        depth_freq  = rand_range(0.3, 0.7),
+    }
+end
 
 local last_t = sys.now()
 
-local function reflect_walls(f)
-    local max_x = WIDTH  - LOGO_SIZE
-    local max_y = HEIGHT - LOGO_SIZE
-    if f.pos_x < 0     then f.pos_x = -f.pos_x;            f.vel_x = -f.vel_x end
-    if f.pos_x > max_x then f.pos_x = 2 * max_x - f.pos_x; f.vel_x = -f.vel_x end
-    if f.pos_y < 0     then f.pos_y = -f.pos_y;            f.vel_y = -f.vel_y end
-    if f.pos_y > max_y then f.pos_y = 2 * max_y - f.pos_y; f.vel_y = -f.vel_y end
+local function size_of(f, now)
+    return BASE_SIZE * (1 + DEPTH_AMP * math.sin(now * f.depth_freq + f.depth_phase))
 end
 
--- Equal-mass elastic collision between the two logos, treating each as a
--- circle of LOGO_RADIUS centred on its quad.
-local function collide(a, b)
-    local ax = a.pos_x + LOGO_SIZE / 2
-    local ay = a.pos_y + LOGO_SIZE / 2
-    local bx = b.pos_x + LOGO_SIZE / 2
-    local by = b.pos_y + LOGO_SIZE / 2
-    local dx, dy = bx - ax, by - ay
-    local d2 = dx * dx + dy * dy
-    local r  = 2 * LOGO_RADIUS
-    if d2 >= r * r or d2 < 1e-6 then return end
+-- Reflect off the screen edges. On any hit, randomise the spin and apply
+-- a small velocity jitter so motion never settles into a pattern. Speed
+-- is clamped so the jitter doesn't compound to extremes over time.
+local function bounce(f, now)
+    local half = size_of(f, now) / 2
+    local hit = false
+    if     f.cx < half          then f.cx = 2 * half - f.cx;            f.vel_x = -f.vel_x; hit = true
+    elseif f.cx > WIDTH - half  then f.cx = 2 * (WIDTH  - half) - f.cx; f.vel_x = -f.vel_x; hit = true end
+    if     f.cy < half          then f.cy = 2 * half - f.cy;            f.vel_y = -f.vel_y; hit = true
+    elseif f.cy > HEIGHT - half then f.cy = 2 * (HEIGHT - half) - f.cy; f.vel_y = -f.vel_y; hit = true end
+    if not hit then return end
 
-    local d = math.sqrt(d2)
-    local nx, ny = dx / d, dy / d
-    local rel_n = (b.vel_x - a.vel_x) * nx + (b.vel_y - a.vel_y) * ny
-    if rel_n >= 0 then return end  -- already separating
-
-    a.vel_x = a.vel_x + rel_n * nx
-    a.vel_y = a.vel_y + rel_n * ny
-    b.vel_x = b.vel_x - rel_n * nx
-    b.vel_y = b.vel_y - rel_n * ny
-
-    -- Push apart so they don't stay overlapping after the bounce.
-    local push = (r - d) / 2
-    a.pos_x = a.pos_x - nx * push
-    a.pos_y = a.pos_y - ny * push
-    b.pos_x = b.pos_x + nx * push
-    b.pos_y = b.pos_y + ny * push
+    f.spin  = rand_range(-60, 60)
+    f.vel_x = f.vel_x * rand_range(0.85, 1.20)
+    f.vel_y = f.vel_y * rand_range(0.85, 1.20)
+    local speed  = math.sqrt(f.vel_x * f.vel_x + f.vel_y * f.vel_y)
+    local target = math.max(60, math.min(speed, 200))
+    f.vel_x = f.vel_x * target / speed
+    f.vel_y = f.vel_y * target / speed
 end
 
 function node.render()
@@ -86,18 +72,21 @@ function node.render()
     local dt = math.min(now - last_t, 0.1)
     last_t = now
 
-    for _, f in ipairs(floaters) do
-        f.pos_x = f.pos_x + f.vel_x * dt
-        f.pos_y = f.pos_y + f.vel_y * dt
-        reflect_walls(f)
-    end
-    collide(floaters[1], floaters[2])
-
     shader:use{ Time = now }
+
     for _, f in ipairs(floaters) do
-        logo_image(f.file):draw(
-            f.pos_x, f.pos_y,
-            f.pos_x + LOGO_SIZE, f.pos_y + LOGO_SIZE
-        )
+        f.cx    = f.cx    + f.vel_x * dt
+        f.cy    = f.cy    + f.vel_y * dt
+        f.angle = f.angle + f.spin  * dt
+        bounce(f, now)
+
+        local size = size_of(f, now)
+        local img  = _G[f.file:gsub("%.png$", "")]
+
+        gl.pushMatrix()
+        gl.translate(f.cx, f.cy)
+        gl.rotate(f.angle, 0, 0, 1)
+        img:draw(-size / 2, -size / 2, size / 2, size / 2)
+        gl.popMatrix()
     end
 end
