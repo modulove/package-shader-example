@@ -5,9 +5,8 @@ gl.setup(NATIVE_WIDTH, NATIVE_HEIGHT)
 local LOGOS = {
     "logo1.png",
     "logo2.png",
-    "logo3.png",
 }
-local INTERVAL = 5
+local INTERVAL = 30
 
 local resources = {"shader.frag"}
 for _, name in ipairs(LOGOS) do
@@ -21,7 +20,7 @@ local function current_logo()
 end
 
 function node.render()
-    gl.clear(1, 1, 1, 1)
+    gl.clear(0, 0, 0, 1)
     shader:use{
         Effect = math.cos(os.time() * 2) * 3,
     }
