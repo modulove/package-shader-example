@@ -5,7 +5,7 @@ local LOGOS = {
     "logo2.png",
 }
 
-local BASE_SIZE = 390     -- reference logo size in pixels
+local BASE_SIZE = 300     -- reference logo size in pixels
 local DEPTH_AMP = 0.30    -- +/-30% size pulse to fake a depth axis
 local MIN_SPEED = 40
 local MAX_SPEED = 220
@@ -101,7 +101,7 @@ end
 -- one is much larger (i.e. visibly closer to the viewer) than the other,
 -- they're treated as being on different planes and pass through with
 -- the usual alpha-blended merge.
-local DEPTH_COLLIDE_TOL = 0.25
+local DEPTH_COLLIDE_TOL = 0.15
 
 -- Equal-mass elastic collision between two floaters, treating each as a
 -- circle of its current half-size. The cropped logos roughly fit their
