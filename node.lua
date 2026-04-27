@@ -8,7 +8,7 @@ local LOGOS = {
 -- Visible logo size and the transparent margin around it that the shader
 -- fills with the aura halo. The drawn quad is LOGO_SIZE + 2*GLOW_MARGIN.
 local LOGO_SIZE   = 390
-local GLOW_MARGIN = 60
+local GLOW_MARGIN = 15
 local QUAD_SIZE   = LOGO_SIZE + 2 * GLOW_MARGIN
 local INSET       = GLOW_MARGIN / QUAD_SIZE
 local LOGO_RADIUS = LOGO_SIZE / 2
